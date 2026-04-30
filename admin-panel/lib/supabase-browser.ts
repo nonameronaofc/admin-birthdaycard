@@ -1,0 +1,19 @@
+'use client';
+
+import { createBrowserClient } from '@supabase/ssr';
+
+let _client: ReturnType<typeof createBrowserClient> | null = null;
+
+export function createSupabaseBrowserClient() {
+  if (_client) return _client;
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    throw new Error('Supabase config belum diisi di .env.local.');
+  }
+
+  _client = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  return _client;
+}

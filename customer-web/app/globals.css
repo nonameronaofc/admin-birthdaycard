@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f5f3ff;
+  --bg-2: #eef0ff;
+  --paper: #ffffff;
+  --ink: #2a2748;
+  --ink-soft: #6b6796;
+  --ink-faint: #a8a4c9;
+  --line: #c8cdf0;
+  --line-soft: #e3e6f7;
+  --accent: #8b91e8;
+  --accent-deep: #5a62cc;
+  --accent-soft: #e8eaff;
+  --danger: #e85a78;
+  --success: #4fb88a;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 213, 213, 0.35) 0%, transparent 40%),
+    radial-gradient(circle at 90% 100%, rgba(212, 240, 224, 0.35) 0%, transparent 40%),
+    var(--bg);
+  display: flex;
+  justify-content: center;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Hide scrollbar utilities */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+
+/* Disable iOS double-tap zoom on buttons */
+button {
+  touch-action: manipulation;
+}

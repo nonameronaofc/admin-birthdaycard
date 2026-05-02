@@ -21,6 +21,25 @@ export function sanitizeOptional(input: unknown, maxLen = 500): string | null {
   return s.length > 0 ? s : null;
 }
 
+/**
+ * Sanitasi input untuk pencarian PostgREST.
+ * Hilangkan karakter yang bisa merusak syntax `.or(...)`,
+ * lalu trim panjang input agar query tetap ringan.
+ */
+export function sanitizeSearchTerm(input: unknown, maxLen = 100): string {
+  return sanitizeText(input, maxLen)
+    .replace(/[,%()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Escape wildcard ILIKE agar `%` dan `_` dibaca sebagai teks biasa.
+ */
+export function escapeIlikePattern(input: string): string {
+  return input.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 export function sanitizeEmail(input: unknown): string | null {
   if (typeof input !== 'string') return null;
   const trimmed = input.trim();

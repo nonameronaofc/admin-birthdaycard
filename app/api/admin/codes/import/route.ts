@@ -7,6 +7,7 @@ import {
   type PackageCode,
   isLivePackage,
 } from '@/lib/constants';
+import { logApiError } from '@/lib/logger';
 import { sanitizeUUID, sanitizeEnum } from '@/lib/sanitize';
 
 interface ImportResult {
@@ -14,6 +15,8 @@ interface ImportResult {
   inserted: number;
   rejected: { code: string; reason: string }[];
 }
+
+const MAX_IMPORT_CODES = 1000;
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin();
@@ -26,6 +29,12 @@ export async function POST(req: NextRequest) {
 
   if (!Array.isArray(codes) || codes.length === 0) {
     return NextResponse.json({ error: 'Daftar kode kosong.' }, { status: 400 });
+  }
+  if (codes.length > MAX_IMPORT_CODES) {
+    return NextResponse.json(
+      { error: `Maksimal ${MAX_IMPORT_CODES} kode per import agar proses tetap stabil.` },
+      { status: 400 }
+    );
   }
   if (!expectedPackage) {
     return NextResponse.json({ error: 'Package code tidak valid.' }, { status: 400 });
@@ -47,8 +56,15 @@ export async function POST(req: NextRequest) {
 
   // Validasi sesi live aktif
   if (liveSessionId) {
-    const { data: session } = await supabase
+    const { data: session, error: sessionError } = await supabase
       .from('live_sessions').select('status').eq('id', liveSessionId).single();
+    if (sessionError) {
+      logApiError('admin.codes.import.live-session-check', sessionError, {
+        expectedPackage,
+        liveSessionId,
+      });
+      return NextResponse.json({ error: sessionError.message }, { status: 500 });
+    }
     if (!session || session.status !== 'active') {
       return NextResponse.json(
         { error: 'Live session tidak ditemukan atau tidak aktif.' },
@@ -89,8 +105,15 @@ export async function POST(req: NextRequest) {
   // Cek duplikat di database
   if (validRows.length > 0) {
     const codesArray = validRows.map((v) => v.code);
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('order_codes').select('code').in('code', codesArray);
+    if (existingError) {
+      logApiError('admin.codes.import.check-existing', existingError, {
+        totalCodes: codesArray.length,
+        expectedPackage,
+      });
+      return NextResponse.json({ error: existingError.message }, { status: 500 });
+    }
     const existingSet = new Set((existing ?? []).map((e) => e.code));
 
     const toInsert = validRows.filter((v) => {
@@ -116,6 +139,13 @@ export async function POST(req: NextRequest) {
       const { error: insertError, count } = await supabase
         .from('order_codes').insert(finalInsert, { count: 'exact' });
       if (insertError) {
+        logApiError('admin.codes.import.insert', insertError, {
+          totalCodes: codes.length,
+          validRows: validRows.length,
+          insertedRows: finalInsert.length,
+          expectedPackage,
+          liveSessionId,
+        });
         return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
       result.inserted = count ?? finalInsert.length;

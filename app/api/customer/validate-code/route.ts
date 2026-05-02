@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { ORDER_CODE_REGEX, PACKAGE_LABELS, type PackageCode } from '@/lib/constants';
+import { logApiError } from '@/lib/logger';
 import { sanitizeOptional, sanitizeText } from '@/lib/sanitize';
 
 // Rate limit & anti brute force config (bagian 19)
 const MAX_FAILED_ATTEMPTS = 5;
 const BLOCK_DURATION_MS = 30 * 60 * 1000; // 30 menit
+const CODE_ATTEMPT_RETENTION_DAYS = 30;
+const CLEANUP_SAMPLE_RATE = 0.05;
 
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
@@ -27,6 +30,7 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  await maybeCleanupOldAttempts(supabase);
 
   // Cek attempt record
   let attemptsQuery = supabase
@@ -38,7 +42,11 @@ export async function POST(req: NextRequest) {
     ? attemptsQuery.eq('device_key', deviceKey)
     : attemptsQuery.is('device_key', null);
 
-  let { data: attempts } = await attemptsQuery.maybeSingle();
+  let { data: attempts, error: attemptsError } = await attemptsQuery.maybeSingle();
+  if (attemptsError) {
+    logApiError('customer.validate-code.load-attempts', attemptsError, { ip, hasDeviceKey: !!deviceKey });
+    return NextResponse.json({ error: 'Gagal memeriksa percobaan kode.' }, { status: 500 });
+  }
 
   // Cek butuh validasi admin?
   if (attempts?.need_admin_validation) {
@@ -57,7 +65,7 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    await supabase
+    const resetResult = await supabase
       .from('code_attempts')
       .update({
         failed_attempt_count: 0,
@@ -66,6 +74,10 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', attempts.id);
+    if (resetResult.error) {
+      logApiError('customer.validate-code.reset-admin-validation', resetResult.error, { attemptId: attempts.id, ip });
+      return NextResponse.json({ error: 'Gagal mereset percobaan kode.' }, { status: 500 });
+    }
     attempts = {
       ...attempts,
       failed_attempt_count: 0,
@@ -88,11 +100,15 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Cek di database
-  const { data: codeRow } = await supabase
+  const { data: codeRow, error: codeLookupError } = await supabase
     .from('order_codes')
     .select('*, live_sessions(id, name, status)')
     .eq('code', code)
     .maybeSingle();
+  if (codeLookupError) {
+    logApiError('customer.validate-code.lookup-order-code', codeLookupError, { code, ip });
+    return NextResponse.json({ error: 'Gagal memeriksa kode pesanan.' }, { status: 500 });
+  }
 
   if (!codeRow) {
     await recordFailedAttempt(supabase, ip, deviceKey, attempts);
@@ -123,10 +139,13 @@ export async function POST(req: NextRequest) {
 
   // Reset failed attempt counter on success
   if (attempts && attempts.failed_attempt_count > 0) {
-    await supabase
+    const resetAttempts = await supabase
       .from('code_attempts')
       .update({ failed_attempt_count: 0, updated_at: new Date().toISOString() })
       .eq('id', attempts.id);
+    if (resetAttempts.error) {
+      logApiError('customer.validate-code.reset-success-counter', resetAttempts.error, { attemptId: attempts.id, ip, code });
+    }
   }
 
   const pkg = codeRow.package_code as PackageCode;
@@ -153,15 +172,23 @@ async function recordFailedAttempt(
     : null;
 
   if (existing) {
-    await supabase.from('code_attempts').update({
+    const { error } = await supabase.from('code_attempts').update({
       failed_attempt_count: newCount,
       need_admin_validation: needAdmin,
       blocked_until: blockedUntil,
       last_attempt_at: now,
       updated_at: now,
     }).eq('id', existing.id);
+    if (error) {
+      logApiError('customer.validate-code.record-failed.update', error, {
+        attemptId: existing.id,
+        ip,
+        hasDeviceKey: !!deviceKey,
+        newCount,
+      });
+    }
   } else {
-    await supabase.from('code_attempts').insert({
+    const { error } = await supabase.from('code_attempts').insert({
       ip_address: ip,
       device_key: deviceKey,
       failed_attempt_count: newCount,
@@ -169,6 +196,13 @@ async function recordFailedAttempt(
       blocked_until: blockedUntil,
       last_attempt_at: now,
     });
+    if (error) {
+      logApiError('customer.validate-code.record-failed.insert', error, {
+        ip,
+        hasDeviceKey: !!deviceKey,
+        newCount,
+      });
+    }
   }
 }
 
@@ -205,4 +239,18 @@ async function consumeAdminValidationCode(
     .eq('id', validationCode.id);
 
   return updateError ? 'Kode Validasi Admin gagal dipakai. Coba lagi.' : null;
+}
+
+async function maybeCleanupOldAttempts(supabase: ReturnType<typeof createAdminClient>) {
+  if (Math.random() > CLEANUP_SAMPLE_RATE) return;
+
+  const cutoff = new Date(Date.now() - CODE_ATTEMPT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from('code_attempts')
+    .delete()
+    .lt('updated_at', cutoff);
+
+  if (error) {
+    logApiError('customer.validate-code.cleanup-old-attempts', error, { cutoff });
+  }
 }

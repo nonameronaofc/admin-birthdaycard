@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/auth';
+import { logApiError } from '@/lib/logger';
+import { escapeIlikePattern, sanitizeSearchTerm } from '@/lib/sanitize';
 
 export async function GET(req: NextRequest) {
   const guard = await requireAdmin();
@@ -11,7 +13,8 @@ export async function GET(req: NextRequest) {
   const gender = searchParams.get('gender');
   const parentsContent = searchParams.get('parents_content');
   const isActive = searchParams.get('is_active');
-  const search = searchParams.get('search')?.trim();
+  const search = sanitizeSearchTerm(searchParams.get('search'));
+  const escapedSearch = search ? escapeIlikePattern(search) : '';
 
   let query = supabase
     .from('themes')
@@ -21,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (gender) query = query.eq('gender', gender);
   if (parentsContent) query = query.eq('parents_content', parentsContent);
   if (isActive !== null && isActive !== '') query = query.eq('is_active', isActive === 'true');
-  if (search) query = query.or(`name.ilike.%${search}%,theme_code.ilike.%${search}%`);
+  if (search) query = query.or(`name.ilike.%${escapedSearch}%,theme_code.ilike.%${escapedSearch}%`);
 
   const { data, error } = await query;
   if (error) {
@@ -34,12 +37,26 @@ export async function GET(req: NextRequest) {
       if (gender) fallbackQuery = fallbackQuery.eq('gender', gender);
       if (parentsContent) fallbackQuery = fallbackQuery.eq('parents_content', parentsContent);
       if (isActive !== null && isActive !== '') fallbackQuery = fallbackQuery.eq('is_active', isActive === 'true');
-      if (search) fallbackQuery = fallbackQuery.or(`name.ilike.%${search}%,theme_code.ilike.%${search}%`);
+      if (search) fallbackQuery = fallbackQuery.or(`name.ilike.%${escapedSearch}%,theme_code.ilike.%${escapedSearch}%`);
 
       const { data: fallbackData, error: fallbackError } = await fallbackQuery;
-      if (fallbackError) return NextResponse.json({ error: fallbackError.message }, { status: 500 });
+      if (fallbackError) {
+        logApiError('admin.themes.list.fallback', fallbackError, {
+          gender,
+          parentsContent,
+          isActive,
+          search,
+        });
+        return NextResponse.json({ error: fallbackError.message }, { status: 500 });
+      }
       return NextResponse.json({ data: fallbackData });
     }
+    logApiError('admin.themes.list', error, {
+      gender,
+      parentsContent,
+      isActive,
+      search,
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

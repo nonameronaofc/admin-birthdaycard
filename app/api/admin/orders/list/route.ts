@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/auth';
+import { logApiError } from '@/lib/logger';
+import { escapeIlikePattern, sanitizeSearchTerm } from '@/lib/sanitize';
 
 export async function GET(req: NextRequest) {
   const guard = await requireAdmin();
@@ -15,7 +17,7 @@ export async function GET(req: NextRequest) {
   const packageCode = searchParams.get('package_code');
   const downloadStatus = searchParams.get('download_status');
   const liveSessionId = searchParams.get('live_session_id');
-  const search = searchParams.get('search')?.trim();
+  const search = sanitizeSearchTerm(searchParams.get('search'));
 
   let query = supabase
     .from('orders')
@@ -28,8 +30,9 @@ export async function GET(req: NextRequest) {
   if (downloadStatus) query = query.eq('download_status', downloadStatus);
   if (liveSessionId) query = query.eq('live_session_id', liveSessionId);
   if (search) {
+    const escapedSearch = escapeIlikePattern(search);
     query = query.or(
-      `public_order_id.ilike.%${search}%,order_code.ilike.%${search}%,nama_pemesan.ilike.%${search}%,whatsapp_full.ilike.%${search}%,nickname_anak.ilike.%${search}%`
+      `public_order_id.ilike.%${escapedSearch}%,order_code.ilike.%${escapedSearch}%,nama_pemesan.ilike.%${escapedSearch}%,whatsapp_full.ilike.%${escapedSearch}%,nickname_anak.ilike.%${escapedSearch}%`
     );
   }
 
@@ -39,6 +42,15 @@ export async function GET(req: NextRequest) {
 
   const { data, count, error } = await query;
   if (error) {
+    logApiError('admin.orders.list', error, {
+      page,
+      pageSize,
+      status,
+      packageCode,
+      downloadStatus,
+      liveSessionId,
+      search,
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

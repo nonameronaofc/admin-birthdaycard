@@ -2,6 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { fetchJsonOrThrow } from '@/lib/client-api';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+
+function clearSupabaseCookies() {
+  if (typeof document === 'undefined') return;
+  const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/^https:\/\/([^.]+)\./)?.[1];
+  if (!projectRef) return;
+
+  const baseName = `sb-${projectRef}-auth-token`;
+  const candidates = [baseName, `${baseName}.0`, `${baseName}.1`, `${baseName}.2`, `${baseName}.3`, `${baseName}.4`];
+  candidates.forEach((name) => {
+    document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`;
+  });
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -20,6 +33,14 @@ export default function LoginPage() {
     }
     if (params.get('error') === 'session_expired') {
       setError('Sesi login berubah setelah update panel. Silakan masuk lagi untuk melanjutkan.');
+      void fetch('/api/admin/auth/logout', { method: 'POST' }).catch(() => undefined);
+      clearSupabaseCookies();
+      try {
+        const supabase = createSupabaseBrowserClient();
+        void supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Ignore browser cleanup errors on login page.
+      }
     }
 
     const next = params.get('next');

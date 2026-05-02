@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { fetchJsonOrThrow } from '@/lib/client-api';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,8 +45,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push(nextPath);
-    router.refresh();
+    window.location.assign(nextPath);
   }
 
   return (

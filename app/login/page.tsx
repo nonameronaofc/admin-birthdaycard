@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { fetchJsonOrThrow } from '@/lib/client-api';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 function clearSupabaseCookies() {
   if (typeof document === 'undefined') return;
@@ -33,14 +32,7 @@ export default function LoginPage() {
     }
     if (params.get('error') === 'session_expired') {
       setError('Sesi login berubah setelah update panel. Silakan masuk lagi untuk melanjutkan.');
-      void fetch('/api/admin/auth/logout', { method: 'POST' }).catch(() => undefined);
       clearSupabaseCookies();
-      try {
-        const supabase = createSupabaseBrowserClient();
-        void supabase.auth.signOut({ scope: 'local' });
-      } catch {
-        // Ignore browser cleanup errors on login page.
-      }
     }
 
     const next = params.get('next');

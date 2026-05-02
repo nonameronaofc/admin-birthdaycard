@@ -9,6 +9,7 @@ export async function middleware(request: NextRequest) {
   // Public routes (boleh diakses tanpa login)
   const isPublic =
     pathname.startsWith('/login') ||
+    pathname === '/api/health' ||
     pathname.startsWith('/api/customer') ||
     pathname.startsWith('/api/admin/auth') ||
     pathname.startsWith('/_next') ||

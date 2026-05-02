@@ -1,18 +1,15 @@
-// Sanitasi input sesuai dokumentasi bagian 18.
-// Pakai library established (DOMPurify + validator.js).
-
-import DOMPurify from 'isomorphic-dompurify';
-import validator from 'validator';
+// Sanitasi input ringan tanpa dependency browser/DOM.
+// File ini dipakai di API route Vercel, jadi harus aman untuk runtime serverless.
 
 /**
- * Bersihkan string dari HTML/script tag, trim whitespace.
+ * Bersihkan string dari tag HTML sederhana, control char, dan trim whitespace.
  */
 export function sanitizeText(input: unknown, maxLen = 500): string {
   if (typeof input !== 'string') return '';
-  const cleaned = DOMPurify.sanitize(input, {
-    ALLOWED_TAGS: [],
-    ALLOWED_ATTR: [],
-  }).trim();
+  const cleaned = input
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .trim();
   return cleaned.substring(0, maxLen);
 }
 
@@ -42,10 +39,10 @@ export function escapeIlikePattern(input: string): string {
 
 export function sanitizeEmail(input: unknown): string | null {
   if (typeof input !== 'string') return null;
-  const trimmed = input.trim();
+  const trimmed = input.trim().toLowerCase();
   if (!trimmed) return null;
-  if (!validator.isEmail(trimmed)) return null;
-  return validator.normalizeEmail(trimmed) || null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null;
+  return trimmed;
 }
 
 /**
@@ -60,14 +57,29 @@ export function sanitizeWhatsApp(input: unknown): string | null {
 
 export function sanitizeUUID(input: unknown): string | null {
   if (typeof input !== 'string') return null;
-  if (!validator.isUUID(input)) return null;
-  return input;
+  const trimmed = input.trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
 }
 
 export function sanitizeDate(input: unknown): string | null {
   if (typeof input !== 'string') return null;
-  if (!validator.isDate(input, { format: 'YYYY-MM-DD', strictMode: true })) return null;
-  return input;
+  const trimmed = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+
+  const [year, month, day] = trimmed.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return trimmed;
 }
 
 export function sanitizeInt(input: unknown, min: number, max: number): number | null {

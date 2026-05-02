@@ -5,6 +5,7 @@ import AdminShell from '@/components/AdminShell';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PageHeader from '@/components/PageHeader';
 import Toast, { type ToastType } from '@/components/Toast';
+import { fetchJsonOrThrow } from '@/lib/client-api';
 import { GENDERS, GENDER_LABELS, type Gender } from '@/lib/constants';
 
 type SortOrder = 'newest' | 'oldest';
@@ -76,9 +77,11 @@ export default function MasterDataPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ resource: 'character_assets' });
-      const r = await fetch(`/api/admin/master-data?${params}`);
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal memuat character assets.');
+      const json = await fetchJsonOrThrow<{ data: CharacterAsset[] }>(
+        `/api/admin/master-data?${params}`,
+        undefined,
+        'Gagal memuat character assets.'
+      );
       setRows(json.data || []);
     } catch (e) {
       setRows([]);
@@ -163,12 +166,10 @@ export default function MasterDataPage() {
       formData.append('asset_code', form.asset_code);
       formData.append('file', file);
 
-      const r = await fetch('/api/admin/character-assets/image', {
+      const json = await fetchJsonOrThrow<{ data?: { image_url?: string } }>('/api/admin/character-assets/image', {
         method: 'POST',
         body: formData,
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Upload character asset gagal.');
+      }, 'Upload character asset gagal.');
 
       setForm((current) => ({
         ...current,
@@ -185,7 +186,7 @@ export default function MasterDataPage() {
   async function saveAsset(mode: 'create' | 'update', targetId?: string) {
     setSaving(true);
     try {
-      const r = await fetch('/api/admin/master-data', {
+      await fetchJsonOrThrow('/api/admin/master-data', {
         method: mode === 'update' ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -200,9 +201,7 @@ export default function MasterDataPage() {
             is_active: form.is_active,
           },
         }),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal menyimpan character asset.');
+      }, 'Gagal menyimpan character asset.');
 
       setToast({
         msg: mode === 'update' ? 'Character asset berhasil diupdate.' : 'Character asset berhasil dibuat.',
@@ -242,7 +241,7 @@ export default function MasterDataPage() {
   async function toggleStatus(row: CharacterAsset) {
     setSaving(true);
     try {
-      const r = await fetch('/api/admin/master-data', {
+      await fetchJsonOrThrow('/api/admin/master-data', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -250,9 +249,7 @@ export default function MasterDataPage() {
           id: row.id,
           action: row.is_active ? 'deactivate' : 'reactivate',
         }),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal mengubah status.');
+      }, 'Gagal mengubah status.');
 
       setToast({ msg: 'Status asset berhasil diubah.', type: 'success' });
       setConfirmStatus(null);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import PageHeader from '@/components/PageHeader';
+import { fetchJsonOrThrow } from '@/lib/client-api';
 
 interface Stats {
   todayOrders: number;
@@ -28,9 +29,11 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch('/api/admin/dashboard');
-      if (!r.ok) throw new Error('Gagal memuat data. Silakan refresh halaman.');
-      const data = await r.json();
+      const data = await fetchJsonOrThrow<Stats>(
+        '/api/admin/dashboard',
+        undefined,
+        'Gagal memuat data. Silakan refresh halaman.'
+      );
       setStats(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Terjadi kesalahan');

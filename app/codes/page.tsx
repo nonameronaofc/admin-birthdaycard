@@ -6,6 +6,7 @@ import AdminShell from '@/components/AdminShell';
 import PageHeader from '@/components/PageHeader';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import Toast, { type ToastType } from '@/components/Toast';
+import { fetchJsonOrThrow } from '@/lib/client-api';
 import {
   PACKAGE_CODES, PACKAGE_LABELS, CODE_STATUSES, isLivePackage, type PackageCode,
 } from '@/lib/constants';
@@ -97,9 +98,11 @@ export default function CodesPage() {
       if (filterPackage) params.set('package_code', filterPackage);
       if (search.trim()) params.set('search', search.trim().toUpperCase());
 
-      const r = await fetch(`/api/admin/codes/list?${params}`);
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal memuat data. Silakan refresh halaman.');
+      const json = await fetchJsonOrThrow<{ data: OrderCode[]; total: number }>(
+        `/api/admin/codes/list?${params}`,
+        undefined,
+        'Gagal memuat data. Silakan refresh halaman.'
+      );
       setCodes(json.data || []);
       setTotal(json.total || 0);
       setSelected(new Set());
@@ -112,11 +115,12 @@ export default function CodesPage() {
 
   const fetchActiveSessions = useCallback(async () => {
     try {
-      const r = await fetch('/api/admin/live-sessions/list?status=active');
-      if (r.ok) {
-        const json = await r.json();
-        setActiveSessions(json.data || []);
-      }
+      const json = await fetchJsonOrThrow<{ data: LiveSession[] }>(
+        '/api/admin/live-sessions/list?status=active',
+        undefined,
+        'Gagal memuat live session aktif.'
+      );
+      setActiveSessions(json.data || []);
     } catch { /* ignore */ }
   }, []);
 
@@ -169,7 +173,11 @@ export default function CodesPage() {
     setImporting(true);
     setImportResult(null);
     try {
-      const r = await fetch('/api/admin/codes/import', {
+      const json = await fetchJsonOrThrow<{
+        total: number;
+        inserted: number;
+        rejected: { code: string; reason: string }[];
+      }>('/api/admin/codes/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -177,9 +185,7 @@ export default function CodesPage() {
           package_code: importPackage,
           live_session_id: isLivePackage(importPackage) ? importSessionId : null,
         }),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Import gagal');
+      }, 'Import gagal');
       setImportResult(json);
       setToast({
         msg: `${json.inserted} dari ${json.total} kode berhasil diimport.`,
@@ -198,13 +204,11 @@ export default function CodesPage() {
     if (!confirmExpire) return;
     setActionLoading(true);
     try {
-      const r = await fetch('/api/admin/codes/expire', {
+      const json = await fetchJsonOrThrow<{ expired: number }>('/api/admin/codes/expire', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: confirmExpire.ids }),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Expire gagal');
+      }, 'Expire gagal');
       setToast({ msg: `${json.expired} kode berhasil di-expire.`, type: 'success' });
       setConfirmExpire(null);
       fetchCodes();

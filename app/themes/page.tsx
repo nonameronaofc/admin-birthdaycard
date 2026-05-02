@@ -5,6 +5,7 @@ import AdminShell from '@/components/AdminShell';
 import PageHeader from '@/components/PageHeader';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import Toast, { type ToastType } from '@/components/Toast';
+import { fetchJsonOrThrow } from '@/lib/client-api';
 import {
   GENDERS,
   GENDER_LABELS,
@@ -153,9 +154,11 @@ export default function ThemesPage() {
       if (filterActive) params.set('is_active', filterActive);
       if (search.trim()) params.set('search', search.trim());
 
-      const r = await fetch(`/api/admin/themes/list?${params}`);
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal memuat data. Silakan refresh halaman.');
+      const json = await fetchJsonOrThrow<{ data: Theme[] }>(
+        `/api/admin/themes/list?${params}`,
+        undefined,
+        'Gagal memuat data. Silakan refresh halaman.'
+      );
       setThemes(json.data || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Terjadi kesalahan');
@@ -190,13 +193,13 @@ export default function ThemesPage() {
     const draftUploads = form.images.filter((image) => image.is_new && image.storage_path);
     if (draftUploads.length > 0) {
       try {
-        await fetch('/api/admin/themes/images', {
+        await fetchJsonOrThrow('/api/admin/themes/images', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             storage_paths: draftUploads.map((image) => image.storage_path),
           }),
-        });
+        }, 'Gagal membersihkan draft foto tema.');
       } catch {
         // Best effort cleanup for unsaved draft uploads.
       }
@@ -245,12 +248,10 @@ export default function ThemesPage() {
       formData.append('existing_count', String(form.images.length));
       filesToUpload.forEach((file) => formData.append('files', file));
 
-      const r = await fetch('/api/admin/themes/images', {
+      const json = await fetchJsonOrThrow<{ data: ThemeImage[] }>('/api/admin/themes/images', {
         method: 'POST',
         body: formData,
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Upload foto tema gagal.');
+      }, 'Upload foto tema gagal.');
 
       const uploadedImages = (json.data ?? []).map((image: ThemeImage) => ({
         ...image,
@@ -273,13 +274,11 @@ export default function ThemesPage() {
     setRemovingImageUrl(image.image_url);
     try {
       if (image.is_new && image.storage_path) {
-        const r = await fetch('/api/admin/themes/images', {
+        await fetchJsonOrThrow('/api/admin/themes/images', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ storage_paths: [image.storage_path] }),
-        });
-        const json = await r.json();
-        if (!r.ok) throw new Error(json.error || 'Gagal menghapus foto draft.');
+        }, 'Gagal menghapus foto draft.');
       }
 
       setForm((current) => ({
@@ -308,7 +307,7 @@ export default function ThemesPage() {
     setSaving(true);
     try {
       const url = form.id ? '/api/admin/themes/update' : '/api/admin/themes/create';
-      const r = await fetch(url, {
+      await fetchJsonOrThrow(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -327,9 +326,7 @@ export default function ThemesPage() {
             storage_path: image.storage_path,
           })),
         }),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal menyimpan tema');
+      }, 'Gagal menyimpan tema');
 
       setToast({
         msg: form.id ? 'Tema berhasil diupdate.' : 'Tema berhasil dibuat.',
@@ -352,13 +349,11 @@ export default function ThemesPage() {
     }
 
     try {
-      const r = await fetch('/api/admin/themes/deactivate', {
+      await fetchJsonOrThrow('/api/admin/themes/deactivate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: theme.id, is_active: true }),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal mengaktifkan tema');
+      }, 'Gagal mengaktifkan tema');
       setToast({ msg: `Tema "${theme.name}" diaktifkan.`, type: 'success' });
       await fetchThemes();
     } catch (e) {
@@ -371,13 +366,11 @@ export default function ThemesPage() {
 
     setActionLoading(true);
     try {
-      const r = await fetch('/api/admin/themes/deactivate', {
+      await fetchJsonOrThrow('/api/admin/themes/deactivate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: confirmDeactivate.id, is_active: false }),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal nonaktifkan tema');
+      }, 'Gagal nonaktifkan tema');
       setToast({ msg: `Tema "${confirmDeactivate.name}" dinonaktifkan.`, type: 'success' });
       setConfirmDeactivate(null);
       await fetchThemes();

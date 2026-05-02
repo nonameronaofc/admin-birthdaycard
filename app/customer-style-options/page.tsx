@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import PageHeader from '@/components/PageHeader';
+import { fetchJsonOrThrow } from '@/lib/client-api';
 import Toast, { type ToastType } from '@/components/Toast';
 
 type StyleOption = {
@@ -38,9 +39,11 @@ export default function CustomerStyleOptionsPage() {
   const loadOptions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/customer-style-options');
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Gagal memuat visibilitas opsi.');
+      const json = await fetchJsonOrThrow<{
+        hair?: StyleOption[];
+        eyeglasses?: StyleOption[];
+        needs_schema_update?: boolean;
+      }>('/api/admin/customer-style-options', undefined, 'Gagal memuat visibilitas opsi.');
       setHairOptions(json.hair ?? makeFallback(HAIR_CODES));
       setEyeglassesOptions(json.eyeglasses ?? makeFallback(EYEGLASSES_CODES));
       setNeedsSchemaUpdate(!!json.needs_schema_update);
@@ -93,16 +96,14 @@ export default function CustomerStyleOptionsPage() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/customer-style-options', {
+      await fetchJsonOrThrow('/api/admin/customer-style-options', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           visible_hair_codes: visibleHair,
           visible_eyeglasses_codes: visibleEyeglasses,
         }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Gagal menyimpan visibilitas opsi.');
+      }, 'Gagal menyimpan visibilitas opsi.');
       setToast({ msg: 'Visibilitas opsi customer berhasil disimpan.', type: 'success' });
       await loadOptions();
     } catch (error) {

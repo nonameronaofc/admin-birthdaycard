@@ -5,6 +5,7 @@ import AdminShell from '@/components/AdminShell';
 import PageHeader from '@/components/PageHeader';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import Toast, { type ToastType } from '@/components/Toast';
+import { fetchBlobOrThrow, fetchJsonOrThrow } from '@/lib/client-api';
 
 interface CodeStats {
   total: number;
@@ -49,9 +50,11 @@ export default function LiveSessionsPage() {
     try {
       const params = new URLSearchParams();
       if (filterStatus) params.set('status', filterStatus);
-      const r = await fetch(`/api/admin/live-sessions/list?${params}`);
-      if (!r.ok) throw new Error('Gagal memuat data. Silakan refresh halaman.');
-      const json = await r.json();
+      const json = await fetchJsonOrThrow<{ data: LiveSession[] }>(
+        `/api/admin/live-sessions/list?${params}`,
+        undefined,
+        'Gagal memuat data. Silakan refresh halaman.'
+      );
       setSessions(json.data || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Terjadi kesalahan');
@@ -67,13 +70,11 @@ export default function LiveSessionsPage() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const r = await fetch('/api/admin/live-sessions/create', {
+      await fetchJsonOrThrow('/api/admin/live-sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName.trim() }),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error || 'Gagal membuat sesi');
+      }, 'Gagal membuat sesi');
       setToast({ msg: `Sesi "${newName.trim()}" berhasil dibuat.`, type: 'success' });
       setNewName('');
       fetchSessions();
@@ -88,12 +89,11 @@ export default function LiveSessionsPage() {
     if (!confirmClose) return;
     setActionLoading(true);
     try {
-      const r = await fetch('/api/admin/live-sessions/close', {
+      await fetchJsonOrThrow('/api/admin/live-sessions/close', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: confirmClose.id }),
-      });
-      if (!r.ok) throw new Error('Gagal menutup sesi');
+      }, 'Gagal menutup sesi');
       setToast({ msg: 'Sesi live berhasil ditutup.', type: 'success' });
       setConfirmClose(null);
       fetchSessions();
@@ -108,12 +108,11 @@ export default function LiveSessionsPage() {
     if (!confirmCancel) return;
     setActionLoading(true);
     try {
-      const r = await fetch('/api/admin/live-sessions/cancel', {
+      await fetchJsonOrThrow('/api/admin/live-sessions/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: confirmCancel.id }),
-      });
-      if (!r.ok) throw new Error('Gagal membatalkan sesi');
+      }, 'Gagal membatalkan sesi');
       setToast({ msg: 'Sesi live berhasil dibatalkan.', type: 'success' });
       setConfirmCancel(null);
       fetchSessions();
@@ -127,7 +126,7 @@ export default function LiveSessionsPage() {
   async function handleExport(session: LiveSession, format: 'csv' | 'json') {
     setExporting(session.id);
     try {
-      const r = await fetch('/api/admin/orders/export', {
+      const blob = await fetchBlobOrThrow('/api/admin/orders/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -135,9 +134,7 @@ export default function LiveSessionsPage() {
           file_format: format,
           live_session_id: session.id,
         }),
-      });
-      if (!r.ok) throw new Error('Export gagal. Silakan coba lagi atau hubungi admin teknis.');
-      const blob = await r.blob();
+      }, 'Export gagal. Silakan coba lagi atau hubungi admin teknis.');
       const slug = session.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
       const dateStr = session.started_at.substring(0, 10);
       const url = URL.createObjectURL(blob);

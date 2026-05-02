@@ -5,6 +5,7 @@ import AdminShell from '@/components/AdminShell';
 import PageHeader from '@/components/PageHeader';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import Toast, { type ToastType } from '@/components/Toast';
+import { fetchBlobOrThrow, fetchJsonOrThrow } from '@/lib/client-api';
 import { PACKAGE_CODES, PACKAGE_LABELS } from '@/lib/constants';
 
 interface Order {
@@ -54,9 +55,11 @@ export default function OrdersPage() {
       if (filterDownload) params.set('download_status', filterDownload);
       if (search.trim()) params.set('search', search.trim());
 
-      const r = await fetch(`/api/admin/orders/list?${params}`);
-      if (!r.ok) throw new Error('Gagal memuat data. Silakan refresh halaman.');
-      const json = await r.json();
+      const json = await fetchJsonOrThrow<{ data: Order[]; total: number }>(
+        `/api/admin/orders/list?${params}`,
+        undefined,
+        'Gagal memuat data. Silakan refresh halaman.'
+      );
       setOrders(json.data || []);
       setTotal(json.total || 0);
     } catch (e) {
@@ -72,12 +75,11 @@ export default function OrdersPage() {
     if (!confirmCancel) return;
     setActionLoading(true);
     try {
-      const r = await fetch('/api/admin/orders/cancel', {
+      await fetchJsonOrThrow('/api/admin/orders/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: confirmCancel.id }),
-      });
-      if (!r.ok) throw new Error('Gagal membatalkan order');
+      }, 'Gagal membatalkan order');
       setToast({ msg: 'Order berhasil dibatalkan.', type: 'success' });
       setConfirmCancel(null);
       fetchOrders();
@@ -91,13 +93,11 @@ export default function OrdersPage() {
   async function handleExportDaily(format: 'csv' | 'json') {
     setExporting(true);
     try {
-      const r = await fetch('/api/admin/orders/export', {
+      const blob = await fetchBlobOrThrow('/api/admin/orders/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ export_type: 'daily_export', file_format: format, date: exportDate }),
-      });
-      if (!r.ok) throw new Error('Export gagal. Silakan coba lagi atau hubungi admin teknis.');
-      const blob = await r.blob();
+      }, 'Export gagal. Silakan coba lagi atau hubungi admin teknis.');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

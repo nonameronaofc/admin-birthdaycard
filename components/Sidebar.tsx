@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { fetchJsonOrThrow } from '@/lib/client-api';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'O' },
@@ -19,8 +19,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
 
   async function handleLogout() {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
+    await fetchJsonOrThrow('/api/admin/auth/logout', {
+      method: 'POST',
+    }, 'Logout gagal. Coba lagi.');
     router.push('/login');
     router.refresh();
   }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { fetchJsonOrThrow } from '@/lib/client-api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,14 +36,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
+      await fetchJsonOrThrow('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      }, 'Login gagal. Periksa email dan password.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Konfigurasi login belum siap.');
       setLoading(false);

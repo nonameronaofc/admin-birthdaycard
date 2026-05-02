@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nextPath, setNextPath] = useState('/dashboard');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -18,6 +19,14 @@ export default function LoginPage() {
     }
     if (params.get('error') === 'supabase_config') {
       setError('Supabase config belum diisi di .env.local.');
+    }
+    if (params.get('error') === 'session_expired') {
+      setError('Sesi login berubah setelah update panel. Silakan masuk lagi untuk melanjutkan.');
+    }
+
+    const next = params.get('next');
+    if (next && next.startsWith('/')) {
+      setNextPath(next);
     }
   }, []);
 
@@ -41,7 +50,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/dashboard');
+    router.push(nextPath);
     router.refresh();
   }
 

@@ -24,6 +24,7 @@ export const NORMAL_PACKAGE_CODES: PackageCode[] = ['HM', 'RG', 'ST'];
 
 // Format kode regex final dari dokumentasi bagian 1
 export const ORDER_CODE_REGEX = /^(HM|RG|ST|RL|SL)[A-Z0-9+!%&]{7}[A-Z0-9]$/;
+export const TRIAL_CODE_REGEX = /^[A-Z0-9][A-Z0-9_-]{2,31}$/;
 
 export const ORDER_STATUSES = ['pending', 'processing', 'completed', 'cancelled'] as const;
 export const CODE_STATUSES = ['unused', 'used', 'expired'] as const;

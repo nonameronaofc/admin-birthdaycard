@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   if (search) {
     const escapedSearch = escapeIlikePattern(search);
     query = query.or(
-      `public_order_id.ilike.%${escapedSearch}%,order_code.ilike.%${escapedSearch}%,nama_pemesan.ilike.%${escapedSearch}%,whatsapp_full.ilike.%${escapedSearch}%,nickname_anak.ilike.%${escapedSearch}%`
+      `public_order_id.ilike.%${escapedSearch}%,order_code.ilike.%${escapedSearch}%,trial_code.ilike.%${escapedSearch}%,nama_pemesan.ilike.%${escapedSearch}%,whatsapp_full.ilike.%${escapedSearch}%,nickname_anak.ilike.%${escapedSearch}%`
     );
   }
 

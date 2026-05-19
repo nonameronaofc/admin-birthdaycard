@@ -28,6 +28,17 @@ interface LiveSession {
   status: string;
 }
 
+interface TrialCode {
+  id: string;
+  code: string;
+  label: string | null;
+  package_code: PackageCode;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 function extractCodeFromRow(row: unknown): string {
   if (typeof row === 'string') return row;
   if (!row || typeof row !== 'object') return '';
@@ -83,6 +94,19 @@ export default function CodesPage() {
   const [activeSessions, setActiveSessions] = useState<LiveSession[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [trialEnabled, setTrialEnabled] = useState(false);
+  const [trialCodes, setTrialCodes] = useState<TrialCode[]>([]);
+  const [trialLoading, setTrialLoading] = useState(false);
+  const [savingTrial, setSavingTrial] = useState(false);
+  const [editingTrialId, setEditingTrialId] = useState<string | null>(null);
+  const [trialForm, setTrialForm] = useState({
+    code: 'TRIAL2026',
+    label: 'Trial Admin',
+    package_code: 'HM' as PackageCode,
+    notes: '',
+    is_active: true,
+  });
+
   // Expire confirm
   const [confirmExpire, setConfirmExpire] = useState<{ ids: string[]; label: string } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -124,8 +148,24 @@ export default function CodesPage() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchTrialCodes = useCallback(async () => {
+    setTrialLoading(true);
+    try {
+      const r = await fetch('/api/admin/trial-codes');
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error || 'Gagal memuat kode trial.');
+      setTrialEnabled(json.settings?.enabled === true);
+      setTrialCodes(json.data || []);
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : 'Gagal memuat kode trial.', type: 'error' });
+    } finally {
+      setTrialLoading(false);
+    }
+  }, []);
+
   useEffect(() => { fetchCodes(); }, [fetchCodes]);
   useEffect(() => { fetchActiveSessions(); }, [fetchActiveSessions]);
+  useEffect(() => { fetchTrialCodes(); }, [fetchTrialCodes]);
 
   function toggleSelect(id: string) {
     const next = new Set(selected);
@@ -226,6 +266,104 @@ export default function CodesPage() {
     window.location.href = `/api/admin/codes/export?${params}`;
   }
 
+  async function toggleTrialEnabled(next: boolean) {
+    setTrialEnabled(next);
+    try {
+      const r = await fetch('/api/admin/trial-codes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { enabled: next } }),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error || 'Gagal update status trial.');
+      setToast({ msg: next ? 'Akses trial diaktifkan.' : 'Akses trial dinonaktifkan.', type: 'success' });
+    } catch (e) {
+      setTrialEnabled(!next);
+      setToast({ msg: e instanceof Error ? e.message : 'Gagal update status trial.', type: 'error' });
+    }
+  }
+
+  function resetTrialForm() {
+    setEditingTrialId(null);
+    setTrialForm({
+      code: 'TRIAL2026',
+      label: 'Trial Admin',
+      package_code: 'HM',
+      notes: '',
+      is_active: true,
+    });
+  }
+
+  function editTrialCode(code: TrialCode) {
+    setEditingTrialId(code.id);
+    setTrialForm({
+      code: code.code,
+      label: code.label || '',
+      package_code: code.package_code,
+      notes: code.notes || '',
+      is_active: code.is_active,
+    });
+  }
+
+  async function saveTrialCode() {
+    setSavingTrial(true);
+    try {
+      const r = await fetch('/api/admin/trial-codes', {
+        method: editingTrialId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingTrialId,
+          code: trialForm.code,
+          label: trialForm.label,
+          package_code: trialForm.package_code,
+          notes: trialForm.notes,
+          is_active: trialForm.is_active,
+        }),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error || 'Gagal menyimpan kode trial.');
+      setToast({ msg: editingTrialId ? 'Kode trial diupdate.' : 'Kode trial ditambahkan.', type: 'success' });
+      resetTrialForm();
+      await fetchTrialCodes();
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : 'Gagal menyimpan kode trial.', type: 'error' });
+    } finally {
+      setSavingTrial(false);
+    }
+  }
+
+  async function toggleTrialCode(code: TrialCode) {
+    try {
+      const r = await fetch('/api/admin/trial-codes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: code.id, is_active: !code.is_active }),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error || 'Gagal update kode trial.');
+      await fetchTrialCodes();
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : 'Gagal update kode trial.', type: 'error' });
+    }
+  }
+
+  async function deleteTrialCode(code: TrialCode) {
+    if (!window.confirm(`Hapus kode trial ${code.code}?`)) return;
+    try {
+      const r = await fetch('/api/admin/trial-codes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: code.id }),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error || 'Gagal hapus kode trial.');
+      setToast({ msg: 'Kode trial dihapus.', type: 'success' });
+      await fetchTrialCodes();
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : 'Gagal hapus kode trial.', type: 'error' });
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
@@ -322,6 +460,119 @@ export default function CodesPage() {
             )}
           </div>
         )}
+      </section>
+
+      <section className="card p-5 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-xs font-mono uppercase tracking-wider text-ink-500 mb-1">
+              Kode Trial Admin
+            </h3>
+            <p className="text-xs text-ink-500 max-w-2xl">
+              Satu kode trial bisa dipakai berulang untuk masuk form customer. Order yang masuk akan ditandai sebagai trial.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-ink-700">
+            <input
+              type="checkbox"
+              checked={trialEnabled}
+              onChange={(e) => toggleTrialEnabled(e.target.checked)}
+            />
+            Aktifkan akses trial
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_140px_1.3fr_auto] gap-3 items-end">
+          <div>
+            <label className="label">Kode Trial</label>
+            <input
+              className="input font-mono uppercase"
+              value={trialForm.code}
+              onChange={(e) => setTrialForm((current) => ({ ...current, code: e.target.value.toUpperCase().trim() }))}
+              maxLength={32}
+              placeholder="TRIAL2026"
+            />
+          </div>
+          <div>
+            <label className="label">Label</label>
+            <input
+              className="input"
+              value={trialForm.label}
+              onChange={(e) => setTrialForm((current) => ({ ...current, label: e.target.value }))}
+              placeholder="Trial Admin"
+            />
+          </div>
+          <div>
+            <label className="label">Paket</label>
+            <select
+              className="input"
+              value={trialForm.package_code}
+              onChange={(e) => setTrialForm((current) => ({ ...current, package_code: e.target.value as PackageCode }))}
+            >
+              {PACKAGE_CODES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Catatan</label>
+            <input
+              className="input"
+              value={trialForm.notes}
+              onChange={(e) => setTrialForm((current) => ({ ...current, notes: e.target.value }))}
+              placeholder="Opsional"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveTrialCode} disabled={savingTrial} className="btn-primary whitespace-nowrap">
+              {savingTrial ? 'Menyimpan...' : editingTrialId ? 'Update' : 'Tambah'}
+            </button>
+            {editingTrialId && (
+              <button onClick={resetTrialForm} className="btn-secondary whitespace-nowrap">
+                Batal
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-x-auto rounded-xl border border-ink-100">
+          <table className="w-full text-sm">
+            <thead className="bg-ink-50 text-ink-600 text-xs uppercase tracking-wide font-mono">
+              <tr>
+                <th className="text-left px-4 py-3">Kode</th>
+                <th className="text-left px-4 py-3">Label</th>
+                <th className="text-left px-4 py-3">Paket</th>
+                <th className="text-left px-4 py-3">Status</th>
+                <th className="text-right px-4 py-3">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {trialLoading ? (
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-ink-400">Memuat kode trial...</td></tr>
+              ) : trialCodes.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-ink-400">Belum ada kode trial.</td></tr>
+              ) : trialCodes.map((code) => (
+                <tr key={code.id}>
+                  <td className="px-4 py-3 font-mono font-semibold">{code.code}</td>
+                  <td className="px-4 py-3">{code.label || '—'}</td>
+                  <td className="px-4 py-3"><span className="badge-purple">{code.package_code}</span> {PACKAGE_LABELS[code.package_code]}</td>
+                  <td className="px-4 py-3">
+                    <span className={code.is_active ? 'badge-green' : 'badge-gray'}>
+                      {code.is_active ? 'active' : 'off'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right space-x-3">
+                    <button className="text-xs text-ink-600 hover:underline" onClick={() => editTrialCode(code)}>Edit</button>
+                    <button className="text-xs text-accent-deep hover:underline" onClick={() => toggleTrialCode(code)}>
+                      {code.is_active ? 'Off' : 'On'}
+                    </button>
+                    <button className="text-xs text-red-600 hover:underline" onClick={() => deleteTrialCode(code)}>Hapus</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* Filter bar */}

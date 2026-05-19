@@ -12,6 +12,8 @@ interface Order {
   id: string;
   public_order_id: string;
   order_code: string;
+  is_trial?: boolean;
+  trial_code?: string | null;
   package_code: string;
   package_label: string;
   status: string;
@@ -212,7 +214,10 @@ export default function OrdersPage() {
               ) : orders.map((o) => (
                 <tr key={o.id} className="hover:bg-ink-50/50">
                   <td className="px-4 py-3 font-mono text-xs text-ink-700">{o.public_order_id}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{o.order_code}</td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    <div>{o.order_code}</div>
+                    {o.is_trial && <span className="badge-purple mt-1 inline-block">TRIAL</span>}
+                  </td>
                   <td className="px-4 py-3"><span className="badge-purple">{o.package_code}</span> <span className="text-ink-500">{o.package_label}</span></td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-ink-800">{o.nama_pemesan}</div>

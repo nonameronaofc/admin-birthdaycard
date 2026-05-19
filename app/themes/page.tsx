@@ -19,7 +19,7 @@ import {
   type ParentsContent,
 } from '@/lib/constants';
 import { parseThemeTags, themeTagsToText } from '@/lib/theme-filters';
-import { MAX_THEME_IMAGES, MIN_THEME_IMAGES } from '@/lib/theme-images';
+import { MIN_THEME_IMAGES } from '@/lib/theme-images';
 
 interface ThemePackageCode {
   package_code: PackageCode;
@@ -85,11 +85,13 @@ const PARENTS_LABELS: Record<ParentsContent, string> = {
 
 const NICKNAME_USAGE_LABELS: Record<NicknameUsage, string> = {
   none: 'Tidak perlu',
-  video: 'Video saja',
-  print: 'File siap cetak saja',
-  both: 'Video + file siap cetak',
+  video: 'Atribut video',
+  print: 'Atribut video',
+  both: 'Atribut video',
 };
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const HAIR_TYPE_OPTIONS = Array.from({ length: 30 }, (_, index) => `Hair Type ${index + 1}`);
+const FACE_ATTRIBUTE_OPTIONS = Array.from({ length: 30 }, (_, index) => `Face ${index + 1}`);
 
 async function readJsonResponse(response: Response) {
   const contentType = response.headers.get('content-type') || '';
@@ -126,8 +128,8 @@ function getNicknameUsage(theme: Pick<Theme, 'requires_parents_nickname' | 'requ
 
 function usageToFlags(usage: NicknameUsage) {
   return {
-    requires_parents_nickname_video: usage === 'video' || usage === 'both',
-    requires_parents_nickname_print: usage === 'print' || usage === 'both',
+    requires_parents_nickname_video: usage !== 'none',
+    requires_parents_nickname_print: false,
   };
 }
 
@@ -314,7 +316,7 @@ export default function ThemesPage() {
     if (variantFileInputRef.current) variantFileInputRef.current.value = '';
   }
 
-  function editVariant(variant: ThemeCharacterVariant) {
+function editVariant(variant: ThemeCharacterVariant) {
     setVariantForm({
       id: variant.id,
       gender: variant.gender,
@@ -328,6 +330,13 @@ export default function ThemesPage() {
       is_active: variant.is_active,
       display_order: variant.display_order,
     });
+  }
+
+  function buildSelectOptions(baseOptions: string[], currentValue: string) {
+    const trimmed = currentValue.trim();
+    return trimmed && !baseOptions.includes(trimmed)
+      ? [trimmed, ...baseOptions]
+      : baseOptions;
   }
 
   function togglePackageCode(packageCode: PackageCode) {
@@ -349,18 +358,7 @@ export default function ThemesPage() {
       return;
     }
 
-    const availableSlots = MAX_THEME_IMAGES - form.images.length;
-    if (availableSlots <= 0) {
-      setToast({ msg: `Maksimal ${MAX_THEME_IMAGES} foto per tema.`, type: 'error' });
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    const filesToUpload = files.slice(0, availableSlots);
-    if (files.length > availableSlots) {
-      setToast({ msg: `Hanya ${availableSlots} foto yang bisa ditambahkan lagi.`, type: 'info' });
-    }
-    const oversizedFile = filesToUpload.find((file) => file.size > MAX_UPLOAD_BYTES);
+    const oversizedFile = files.find((file) => file.size > MAX_UPLOAD_BYTES);
     if (oversizedFile) {
       setToast({ msg: `File ${oversizedFile.name} terlalu besar. Maksimal 10 MB.`, type: 'error' });
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -372,7 +370,7 @@ export default function ThemesPage() {
       const formData = new FormData();
       formData.append('theme_code', form.theme_code.trim().toUpperCase());
       formData.append('existing_count', String(form.images.length));
-      filesToUpload.forEach((file) => formData.append('files', file));
+      files.forEach((file) => formData.append('files', file));
 
       const json = await fetchJsonOrThrow<{ data: ThemeImage[] }>('/api/admin/themes/images', {
         method: 'POST',
@@ -386,7 +384,7 @@ export default function ThemesPage() {
 
       setForm((current) => ({
         ...current,
-        images: [...current.images, ...uploadedImages].slice(0, MAX_THEME_IMAGES),
+        images: [...current.images, ...uploadedImages],
       }));
     } catch (e) {
       setToast({ msg: e instanceof Error ? e.message : 'Upload foto gagal.', type: 'error' });
@@ -556,8 +554,8 @@ export default function ThemesPage() {
       setToast({ msg: 'Pilih minimal 1 package code.', type: 'error' });
       return;
     }
-    if (form.images.length < MIN_THEME_IMAGES || form.images.length > MAX_THEME_IMAGES) {
-      setToast({ msg: `Tema wajib punya ${MIN_THEME_IMAGES}-${MAX_THEME_IMAGES} foto.`, type: 'error' });
+    if (form.images.length < MIN_THEME_IMAGES) {
+      setToast({ msg: `Tema wajib punya minimal ${MIN_THEME_IMAGES} foto.`, type: 'error' });
       return;
     }
 
@@ -753,7 +751,7 @@ export default function ThemesPage() {
 
                   {images.length > 1 && (
                     <div className="grid grid-cols-3 gap-2 mb-3">
-                      {images.slice(0, MAX_THEME_IMAGES).map((image) => (
+                      {images.slice(0, 3).map((image) => (
                         <div key={image.image_url} className="aspect-[4/3] overflow-hidden rounded-lg bg-ink-100">
                           <img src={image.image_url} alt={theme.name} className="w-full h-full object-cover" />
                         </div>
@@ -794,13 +792,15 @@ export default function ThemesPage() {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/40 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-card max-w-3xl w-full p-6 my-8">
-            <h3 className="font-display text-xl font-semibold text-ink-900 mb-5">
-              {form.id ? 'Edit Tema' : 'Tambah Tema'}
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/40 backdrop-blur-sm">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-card">
+            <div className="border-b border-ink-100 px-6 py-4">
+              <h3 className="font-display text-xl font-semibold text-ink-900">
+                {form.id ? 'Edit Tema' : 'Tambah Tema'}
+              </h3>
+            </div>
 
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSave} className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="label">Theme Code *</label>
@@ -877,15 +877,7 @@ export default function ThemesPage() {
                     <label className="label">Parents Nickname</label>
                     <select
                       className="input"
-                      value={
-                        form.requires_parents_nickname_video && form.requires_parents_nickname_print
-                          ? 'both'
-                          : form.requires_parents_nickname_video
-                            ? 'video'
-                            : form.requires_parents_nickname_print
-                              ? 'print'
-                              : 'none'
-                      }
+                      value={form.requires_parents_nickname_video || form.requires_parents_nickname_print ? 'video' : 'none'}
                       onChange={(e) => {
                         const flags = usageToFlags(e.target.value as NicknameUsage);
                         setForm({
@@ -895,7 +887,7 @@ export default function ThemesPage() {
                         });
                       }}
                     >
-                      {(['none', 'video', 'print', 'both'] as NicknameUsage[]).map((usage) => (
+                      {(['none', 'video'] as NicknameUsage[]).map((usage) => (
                         <option key={usage} value={usage}>{NICKNAME_USAGE_LABELS[usage]}</option>
                       ))}
                     </select>
@@ -984,7 +976,7 @@ export default function ThemesPage() {
                   <div>
                     <label className="label mb-0">Foto Tema *</label>
                     <p className="text-xs text-ink-500 mt-1">
-                      Minimal {MIN_THEME_IMAGES} foto, maksimal {MAX_THEME_IMAGES} foto. File akan diupload ke Supabase Storage.
+                      Minimal {MIN_THEME_IMAGES} foto. Tambahkan foto slideshow sebanyak yang dibutuhkan.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -999,12 +991,12 @@ export default function ThemesPage() {
                     <button
                       type="button"
                       className="btn-secondary"
-                      disabled={uploadingImages || form.images.length >= MAX_THEME_IMAGES}
+                      disabled={uploadingImages}
                       onClick={() => fileInputRef.current?.click()}
                     >
                       {uploadingImages ? 'Mengupload...' : 'Browse Foto'}
                     </button>
-                    <span className="text-xs text-ink-500">{form.images.length}/{MAX_THEME_IMAGES}</span>
+                    <span className="text-xs text-ink-500">{form.images.length} foto</span>
                   </div>
                 </div>
 
@@ -1013,7 +1005,7 @@ export default function ThemesPage() {
                     Belum ada foto tema.
                   </div>
                 ) : (
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {form.images.map((image, index) => (
                       <div key={image.image_url} className="rounded-lg border border-ink-100 bg-white overflow-hidden">
                         <div className="aspect-[4/3] bg-ink-100">
@@ -1134,25 +1126,27 @@ export default function ThemesPage() {
                         </div>
                         <div>
                           <label className="label">Hair Type</label>
-                          <input
-                            type="text"
+                          <select
                             className="input"
                             value={variantForm.hair_type_label}
                             onChange={(e) => setVariantForm({ ...variantForm, hair_type_label: e.target.value })}
-                            placeholder="Hair Type 1"
-                            maxLength={40}
-                          />
+                          >
+                            {buildSelectOptions(HAIR_TYPE_OPTIONS, variantForm.hair_type_label).map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="label">Face Attribute</label>
-                          <input
-                            type="text"
+                          <select
                             className="input"
                             value={variantForm.face_attribute_label}
                             onChange={(e) => setVariantForm({ ...variantForm, face_attribute_label: e.target.value })}
-                            placeholder="Face 1"
-                            maxLength={40}
-                          />
+                          >
+                            {buildSelectOptions(FACE_ATTRIBUTE_OPTIONS, variantForm.face_attribute_label).map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="label">Urutan</label>
@@ -1276,7 +1270,7 @@ export default function ThemesPage() {
                 )}
               </div>
 
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-3 border-t border-ink-100 mt-5">
+              <div className="sticky bottom-0 -mx-6 mt-5 flex flex-col-reverse gap-2 border-t border-ink-100 bg-white px-6 py-4 shadow-[0_-12px_24px_rgba(15,23,42,0.06)] sm:flex-row sm:justify-end">
                 <button type="button" onClick={() => void closeForm()} className="btn-secondary" disabled={saving || uploadingImages}>
                   Batal
                 </button>

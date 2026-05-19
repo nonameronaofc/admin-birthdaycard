@@ -2,17 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/auth';
-import { logApiError } from '@/lib/logger';
 import { sanitizeText } from '@/lib/sanitize';
 import {
   deleteThemeStorageObjects,
   ensureThemeBucket,
-  MAX_THEME_IMAGES,
   THEME_IMAGE_BUCKET,
 } from '@/lib/theme-images';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const MAX_THEME_IMAGE_BYTES = 2 * 1024 * 1024;
 
 function getFileExtension(file: File): string {
   const fromName = file.name.split('.').pop()?.trim().toLowerCase();
@@ -28,7 +25,6 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const themeCode = sanitizeText(formData.get('theme_code'), 50).toUpperCase();
-  const existingCount = Math.max(0, Number(formData.get('existing_count') || 0));
   const files = formData.getAll('files').filter((file): file is File => file instanceof File);
 
   if (!themeCode) {
@@ -37,19 +33,9 @@ export async function POST(req: NextRequest) {
   if (files.length === 0) {
     return NextResponse.json({ error: 'Pilih minimal 1 file gambar.' }, { status: 400 });
   }
-  if (existingCount + files.length > MAX_THEME_IMAGES) {
-    return NextResponse.json({ error: `Maksimal ${MAX_THEME_IMAGES} foto per tema.` }, { status: 400 });
-  }
-
   const invalidFile = files.find((file) => !ALLOWED_TYPES.has(file.type));
   if (invalidFile) {
     return NextResponse.json({ error: `Format file ${invalidFile.name} tidak didukung.` }, { status: 400 });
-  }
-  const oversizedFile = files.find((file) => file.size > MAX_THEME_IMAGE_BYTES);
-  if (oversizedFile) {
-    return NextResponse.json({
-      error: `Ukuran file ${oversizedFile.name} melebihi batas 2 MB.`,
-    }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -57,7 +43,6 @@ export async function POST(req: NextRequest) {
   try {
     await ensureThemeBucket(supabase);
   } catch (error) {
-    logApiError('admin.themes.images.ensure-bucket', error, { themeCode, files: files.length });
     const message = error instanceof Error ? error.message : 'Bucket tema gagal disiapkan.';
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -87,7 +72,6 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     await deleteThemeStorageObjects(supabase, uploaded.map((image) => image.storage_path));
-    logApiError('admin.themes.images.upload', error, { themeCode, files: files.length });
     const message = error instanceof Error ? error.message : 'Upload gambar tema gagal.';
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -114,7 +98,6 @@ export async function DELETE(req: NextRequest) {
   try {
     await deleteThemeStorageObjects(supabase, storagePaths);
   } catch (error) {
-    logApiError('admin.themes.images.delete', error, { storagePathCount: storagePaths.length });
     const message = error instanceof Error ? error.message : 'Gagal menghapus gambar tema.';
     return NextResponse.json({ error: message }, { status: 500 });
   }

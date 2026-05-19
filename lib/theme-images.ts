@@ -2,7 +2,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizeText } from './sanitize';
 
 export const THEME_IMAGE_BUCKET = 'theme-previews';
-export const MAX_THEME_IMAGES = 3;
 export const MIN_THEME_IMAGES = 1;
 
 export interface ThemeImageInput {
@@ -72,7 +71,7 @@ export async function syncThemeImages(
   themeId: string,
   images: ThemeImageInput[]
 ) {
-  const normalizedImages = images.slice(0, MAX_THEME_IMAGES);
+  const normalizedImages = images;
 
   const { data: existingRows, error: existingError } = await supabase
     .from('theme_images')

@@ -9,7 +9,6 @@ import {
 } from '@/lib/constants';
 import {
   deleteThemeStorageObjects,
-  MAX_THEME_IMAGES,
   MIN_THEME_IMAGES,
   sanitizeThemeImages,
   syncThemeImages,
@@ -59,9 +58,9 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  if (themeImages.length < MIN_THEME_IMAGES || themeImages.length > MAX_THEME_IMAGES) {
+  if (themeImages.length < MIN_THEME_IMAGES) {
     return NextResponse.json(
-      { error: `Tema wajib punya ${MIN_THEME_IMAGES}-${MAX_THEME_IMAGES} foto.` },
+      { error: `Tema wajib punya minimal ${MIN_THEME_IMAGES} foto.` },
       { status: 400 }
     );
   }

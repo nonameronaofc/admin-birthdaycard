@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_theme_package_codes_package_code ON theme_package
 CREATE INDEX IF NOT EXISTS idx_theme_package_codes_filter ON theme_package_codes(package_code, theme_id);
 
 -- ============================================================
--- 5. THEME IMAGES (maksimal 3 gambar per tema, urut 0-2)
+-- 5. THEME IMAGES (gambar slideshow tema, urut dari display_order)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS theme_images (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

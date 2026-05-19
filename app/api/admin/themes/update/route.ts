@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/auth';
-import { sanitizeText, sanitizeEnum, sanitizeUUID } from '@/lib/sanitize';
+import { sanitizeText, sanitizeEnum, sanitizeUUID, sanitizeInt } from '@/lib/sanitize';
+import { readJsonBody } from '@/lib/api';
+import { parseThemeTags } from '@/lib/theme-filters';
 import {
   GENDERS, PARENTS_CONTENTS, PACKAGE_CODES, type PackageCode,
 } from '@/lib/constants';
@@ -16,7 +18,9 @@ export async function POST(req: NextRequest) {
   const guard = await requireAdmin();
   if (guard) return guard;
 
-  const body = await req.json();
+  const parsed = await readJsonBody<Record<string, unknown>>(req);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   const id = sanitizeUUID(body.id);
   if (!id) return NextResponse.json({ error: 'ID tema tidak valid.' }, { status: 400 });
   const themeImages = sanitizeThemeImages(body.theme_images);
@@ -43,6 +47,13 @@ export async function POST(req: NextRequest) {
   if (typeof body.requires_parents_sweetname === 'boolean') {
     updates.requires_parents_sweetname = parentsContent !== 'none' && body.requires_parents_sweetname;
   }
+  if (Array.isArray(body.style_tags)) updates.style_tags = parseThemeTags(body.style_tags);
+  if (Array.isArray(body.color_tags)) updates.color_tags = parseThemeTags(body.color_tags);
+  if (Array.isArray(body.mood_tags)) updates.mood_tags = parseThemeTags(body.mood_tags);
+  if (typeof body.is_recommended === 'boolean') updates.is_recommended = body.is_recommended;
+  if (body.display_priority !== undefined) {
+    updates.display_priority = sanitizeInt(body.display_priority, -9999, 9999) ?? 0;
+  }
   if (typeof body.is_active === 'boolean') updates.is_active = body.is_active;
 
   if (Array.isArray(body.theme_images)) {
@@ -58,9 +69,24 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
   const { error } = await supabase.from('themes').update(updates).eq('id', id);
   if (error) {
-    if (error.message.includes('requires_parents_nickname_video') || error.message.includes('requires_parents_nickname_print')) {
+    if (
+      error.message.includes('requires_parents_nickname_video') ||
+      error.message.includes('requires_parents_nickname_print')
+    ) {
       return NextResponse.json(
         { error: 'Database belum punya kolom scope nickname. Jalankan supabase/nickname_usage_migration.sql dulu.' },
+        { status: 500 }
+      );
+    }
+    if (
+      error.message.includes('style_tags') ||
+      error.message.includes('color_tags') ||
+      error.message.includes('mood_tags') ||
+      error.message.includes('is_recommended') ||
+      error.message.includes('display_priority')
+    ) {
+      return NextResponse.json(
+        { error: 'Database belum punya kolom filter tema. Jalankan supabase/theme_filter_tags_migration.sql dulu.' },
         { status: 500 }
       );
     }

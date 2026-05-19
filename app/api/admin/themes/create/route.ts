@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/auth';
 import { sanitizeText, sanitizeEnum } from '@/lib/sanitize';
+import { readJsonBody } from '@/lib/api';
+import { parseThemeTags } from '@/lib/theme-filters';
 import {
   GENDERS, PARENTS_CONTENTS, PACKAGE_CODES, type PackageCode,
 } from '@/lib/constants';
@@ -17,7 +19,9 @@ export async function POST(req: NextRequest) {
   const guard = await requireAdmin();
   if (guard) return guard;
 
-  const body = await req.json();
+  const parsed = await readJsonBody<Record<string, unknown>>(req);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
 
   const themeCode = sanitizeText(body.theme_code, 50).toUpperCase();
   const name = sanitizeText(body.name, 100);
@@ -31,6 +35,12 @@ export async function POST(req: NextRequest) {
     !!body.requires_parents_nickname
   );
   const requiresParentsSweetname = parentsContent !== 'none' && !!body.requires_parents_sweetname;
+  const styleTags = parseThemeTags(body.style_tags);
+  const colorTags = parseThemeTags(body.color_tags);
+  const moodTags = parseThemeTags(body.mood_tags);
+  const displayPriority = typeof body.display_priority === 'number'
+    ? body.display_priority
+    : parseInt(String(body.display_priority ?? 0), 10);
   const themeImages = sanitizeThemeImages(body.theme_images);
   const packageCodes: PackageCode[] = Array.isArray(body.package_codes)
     ? (body.package_codes as unknown[]).filter((p): p is PackageCode =>
@@ -69,6 +79,11 @@ export async function POST(req: NextRequest) {
       requires_parents_nickname_video: requiresParentsNicknameVideo || (!!body.requires_parents_nickname && !requiresParentsNicknamePrint),
       requires_parents_nickname_print: requiresParentsNicknamePrint,
       requires_parents_sweetname: requiresParentsSweetname,
+      style_tags: styleTags,
+      color_tags: colorTags,
+      mood_tags: moodTags,
+      is_recommended: !!body.is_recommended,
+      display_priority: Number.isFinite(displayPriority) ? displayPriority : 0,
       image_url: themeImages[0]?.image_url ?? null,
       is_active: true,
     })
@@ -77,9 +92,24 @@ export async function POST(req: NextRequest) {
 
   if (themeError) {
     await deleteThemeStorageObjects(supabase, themeImages.map((image) => image.storage_path));
-    if (themeError.message.includes('requires_parents_nickname_video') || themeError.message.includes('requires_parents_nickname_print')) {
+    if (
+      themeError.message.includes('requires_parents_nickname_video') ||
+      themeError.message.includes('requires_parents_nickname_print')
+    ) {
       return NextResponse.json(
         { error: 'Database belum punya kolom scope nickname. Jalankan supabase/nickname_usage_migration.sql dulu.' },
+        { status: 500 }
+      );
+    }
+    if (
+      themeError.message.includes('style_tags') ||
+      themeError.message.includes('color_tags') ||
+      themeError.message.includes('mood_tags') ||
+      themeError.message.includes('is_recommended') ||
+      themeError.message.includes('display_priority')
+    ) {
+      return NextResponse.json(
+        { error: 'Database belum punya kolom filter tema. Jalankan supabase/theme_filter_tags_migration.sql dulu.' },
         { status: 500 }
       );
     }

@@ -65,6 +65,11 @@ CREATE TABLE IF NOT EXISTS themes (
   requires_parents_nickname_video boolean NOT NULL DEFAULT false,
   requires_parents_nickname_print boolean NOT NULL DEFAULT false,
   requires_parents_sweetname boolean NOT NULL DEFAULT false,
+  style_tags text[] NOT NULL DEFAULT '{}',
+  color_tags text[] NOT NULL DEFAULT '{}',
+  mood_tags text[] NOT NULL DEFAULT '{}',
+  is_recommended boolean NOT NULL DEFAULT false,
+  display_priority integer NOT NULL DEFAULT 0,
   image_url text NULL,
   is_active boolean DEFAULT true,
   created_at timestamptz DEFAULT now(),
@@ -76,11 +81,21 @@ CREATE INDEX IF NOT EXISTS idx_themes_parents_content ON themes(parents_content)
 CREATE INDEX IF NOT EXISTS idx_themes_is_active ON themes(is_active);
 CREATE INDEX IF NOT EXISTS idx_themes_theme_code ON themes(theme_code);
 CREATE INDEX IF NOT EXISTS idx_themes_filter ON themes(gender, parents_content, is_active);
+CREATE INDEX IF NOT EXISTS idx_themes_is_recommended ON themes(is_recommended);
+CREATE INDEX IF NOT EXISTS idx_themes_display_priority ON themes(display_priority);
+CREATE INDEX IF NOT EXISTS idx_themes_style_tags ON themes USING GIN(style_tags);
+CREATE INDEX IF NOT EXISTS idx_themes_color_tags ON themes USING GIN(color_tags);
+CREATE INDEX IF NOT EXISTS idx_themes_mood_tags ON themes USING GIN(mood_tags);
 
 -- Migration aman: scope nickname orang tua.
 -- Legacy requires_parents_nickname dianggap sebagai kebutuhan video.
 ALTER TABLE themes ADD COLUMN IF NOT EXISTS requires_parents_nickname_video boolean NOT NULL DEFAULT false;
 ALTER TABLE themes ADD COLUMN IF NOT EXISTS requires_parents_nickname_print boolean NOT NULL DEFAULT false;
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS style_tags text[] NOT NULL DEFAULT '{}';
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS color_tags text[] NOT NULL DEFAULT '{}';
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS mood_tags text[] NOT NULL DEFAULT '{}';
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS is_recommended boolean NOT NULL DEFAULT false;
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS display_priority integer NOT NULL DEFAULT 0;
 UPDATE themes
 SET requires_parents_nickname_video = true
 WHERE requires_parents_nickname = true
@@ -123,7 +138,39 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_theme_images_storage_path
   WHERE storage_path IS NOT NULL;
 
 -- ============================================================
--- 6. CHARACTER ASSETS (asset final berdasarkan kode statis)
+-- 6. THEME CHARACTER VARIANTS (kombinasi karakter per tema)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS theme_character_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  theme_id uuid NOT NULL REFERENCES themes(id) ON DELETE CASCADE,
+  gender text NOT NULL CHECK (gender IN ('boy', 'girl')),
+  hair_type_label text NOT NULL,
+  hair_type_key text NOT NULL,
+  face_attribute_label text NOT NULL,
+  face_attribute_key text NOT NULL,
+  variant_name text NULL,
+  image_url text NOT NULL,
+  storage_path text NULL,
+  is_default boolean NOT NULL DEFAULT false,
+  is_recommended boolean NOT NULL DEFAULT false,
+  is_active boolean NOT NULL DEFAULT true,
+  display_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE (theme_id, gender, hair_type_key, face_attribute_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_theme_character_variants_theme_id
+  ON theme_character_variants(theme_id);
+CREATE INDEX IF NOT EXISTS idx_theme_character_variants_filter
+  ON theme_character_variants(theme_id, gender, is_active);
+CREATE INDEX IF NOT EXISTS idx_theme_character_variants_default
+  ON theme_character_variants(theme_id, gender, is_default);
+CREATE INDEX IF NOT EXISTS idx_theme_character_variants_display_order
+  ON theme_character_variants(theme_id, gender, display_order);
+
+-- ============================================================
+-- 7. CHARACTER ASSETS (asset final berdasarkan kode statis)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS character_assets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

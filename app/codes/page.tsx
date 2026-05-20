@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useId } from 'react';
 import Papa from 'papaparse';
 import AdminShell from '@/components/AdminShell';
 import PageHeader from '@/components/PageHeader';
@@ -39,6 +39,8 @@ interface TrialCode {
   updated_at: string;
 }
 
+type PackageSelectOption = PackageCode | '';
+
 function extractCodeFromRow(row: unknown): string {
   if (typeof row === 'string') return row;
   if (!row || typeof row !== 'object') return '';
@@ -68,6 +70,95 @@ function parseCodesFromCsv(text: string): string[] {
     .flat()
     .filter((cell): cell is string => typeof cell === 'string' && cell.trim().length > 0)
     .filter((cell, index) => index !== 0 || !['code', 'kode', 'order_code'].includes(cell.trim().toLowerCase()));
+}
+
+function packageOptionLabel(value: PackageSelectOption) {
+  if (!value) return 'Semua';
+  return `${value} - ${PACKAGE_LABELS[value]}`;
+}
+
+function PackageSelect({
+  value,
+  onChange,
+  includeAll = false,
+  compact = false,
+}: {
+  value: PackageSelectOption;
+  onChange: (value: PackageSelectOption) => void;
+  includeAll?: boolean;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const options: PackageSelectOption[] = includeAll ? ['', ...PACKAGE_CODES] : [...PACKAGE_CODES];
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((current) => !current)}
+        className={[
+          'input flex items-center justify-between gap-3 text-left',
+          compact ? 'font-mono' : '',
+        ].join(' ')}
+      >
+        <span className="truncate">{packageOptionLabel(value)}</span>
+        <span className="text-xs text-ink-500">{open ? '^' : 'v'}</span>
+      </button>
+      {open && (
+        <div
+          id={listId}
+          role="listbox"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-64 overflow-y-auto rounded-lg border border-ink-200 bg-white p-1 shadow-card"
+        >
+          {options.map((option) => {
+            const active = value === option;
+            return (
+              <button
+                key={option || 'all'}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className={[
+                  'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-ink-50',
+                  active ? 'bg-ink-900 text-white hover:bg-ink-900' : 'text-ink-800',
+                ].join(' ')}
+              >
+                <span>{packageOptionLabel(option)}</span>
+                {option && <span className={active ? 'text-white/70' : 'text-ink-400'}>{option}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CodesPage() {
@@ -392,11 +483,10 @@ export default function CodesPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
           <div>
             <label className="label">Package Code</label>
-            <select className="input" value={importPackage} onChange={(e) => setImportPackage(e.target.value as PackageCode)}>
-              {PACKAGE_CODES.map((p) => (
-                <option key={p} value={p}>{p} — {PACKAGE_LABELS[p]}</option>
-              ))}
-            </select>
+            <PackageSelect
+              value={importPackage}
+              onChange={(value) => setImportPackage((value || 'HM') as PackageCode)}
+            />
           </div>
           {isLivePackage(importPackage) && (
             <div>
@@ -504,15 +594,11 @@ export default function CodesPage() {
           </div>
           <div>
             <label className="label">Paket</label>
-            <select
-              className="input"
+            <PackageSelect
               value={trialForm.package_code}
-              onChange={(e) => setTrialForm((current) => ({ ...current, package_code: e.target.value as PackageCode }))}
-            >
-              {PACKAGE_CODES.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+              compact
+              onChange={(value) => setTrialForm((current) => ({ ...current, package_code: (value || 'HM') as PackageCode }))}
+            />
           </div>
           <div>
             <label className="label">Catatan</label>
@@ -593,10 +679,14 @@ export default function CodesPage() {
           </div>
           <div>
             <label className="label">Paket</label>
-            <select className="input" value={filterPackage} onChange={(e) => { setFilterPackage(e.target.value); setPage(1); }}>
-              <option value="">Semua</option>
-              {PACKAGE_CODES.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            <PackageSelect
+              value={filterPackage as PackageSelectOption}
+              includeAll
+              onChange={(value) => {
+                setFilterPackage(value);
+                setPage(1);
+              }}
+            />
           </div>
         </div>
 

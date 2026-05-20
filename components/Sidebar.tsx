@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { fetchJsonOrThrow } from '@/lib/client-api';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'O' },
@@ -10,8 +10,6 @@ const NAV = [
   { href: '/codes', label: 'Kode Pesanan', icon: 'K' },
   { href: '/live-sessions', label: 'Live Sessions', icon: 'L' },
   { href: '/themes', label: 'Tema', icon: 'T' },
-  { href: '/master-data', label: 'Master Data', icon: 'M' },
-  { href: '/customer-style-options', label: 'Opsi Customer', icon: 'C' },
 ];
 
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -19,9 +17,8 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
 
   async function handleLogout() {
-    await fetchJsonOrThrow('/api/admin/auth/logout', {
-      method: 'POST',
-    }, 'Logout gagal. Coba lagi.');
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
   }

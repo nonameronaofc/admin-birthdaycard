@@ -40,6 +40,7 @@ interface TrialCode {
 }
 
 type PackageSelectOption = PackageCode | '';
+type CodesPanel = 'list' | 'import' | 'trial';
 
 function extractCodeFromRow(row: unknown): string {
   if (typeof row === 'string') return row;
@@ -161,6 +162,50 @@ function PackageSelect({
   );
 }
 
+function CodesPanelTabs({
+  active,
+  total,
+  trialEnabled,
+  onChange,
+}: {
+  active: CodesPanel;
+  total: number;
+  trialEnabled: boolean;
+  onChange: (panel: CodesPanel) => void;
+}) {
+  const tabs: { key: CodesPanel; label: string; detail: string }[] = [
+    { key: 'list', label: 'Daftar Kode', detail: `${total.toLocaleString('id-ID')} kode` },
+    { key: 'import', label: 'Import Kode', detail: 'CSV / JSON' },
+    { key: 'trial', label: 'Trial Admin', detail: trialEnabled ? 'Aktif' : 'Off' },
+  ];
+
+  return (
+    <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-3">
+      {tabs.map((tab) => {
+        const isActive = active === tab.key;
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onChange(tab.key)}
+            className={[
+              'rounded-lg border px-4 py-3 text-left transition-colors',
+              isActive
+                ? 'border-ink-900 bg-ink-900 text-white'
+                : 'border-ink-200 bg-white text-ink-700 hover:border-ink-300 hover:bg-ink-50',
+            ].join(' ')}
+          >
+            <span className="block text-sm font-semibold">{tab.label}</span>
+            <span className={isActive ? 'mt-1 block text-xs text-ink-200' : 'mt-1 block text-xs text-ink-500'}>
+              {tab.detail}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CodesPage() {
   const [codes, setCodes] = useState<OrderCode[]>([]);
   const [total, setTotal] = useState(0);
@@ -203,6 +248,7 @@ export default function CodesPage() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [activePanel, setActivePanel] = useState<CodesPanel>('list');
 
   const fetchCodes = useCallback(async () => {
     setLoading(true);
@@ -463,14 +509,23 @@ export default function CodesPage() {
         title="Kode Pesanan"
         subtitle={`${total.toLocaleString('id-ID')} kode di database`}
         actions={
-          <>
+          activePanel === 'list' ? (
+            <>
             <button onClick={() => handleExportCodes('csv')} className="btn-secondary">⬇ CSV</button>
             <button onClick={() => handleExportCodes('json')} className="btn-secondary">⬇ JSON</button>
-          </>
+            </>
+          ) : null
         }
       />
 
-      {/* Import section */}
+      <CodesPanelTabs
+        active={activePanel}
+        total={total}
+        trialEnabled={trialEnabled}
+        onChange={setActivePanel}
+      />
+
+      {activePanel === 'import' && (
       <section className="card p-5 mb-6">
         <h3 className="text-xs font-mono uppercase tracking-wider text-ink-500 mb-3">
           Import Kode dari CSV / JSON
@@ -551,7 +606,9 @@ export default function CodesPage() {
           </div>
         )}
       </section>
+      )}
 
+      {activePanel === 'trial' && (
       <section className="card p-5 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div>
@@ -660,7 +717,10 @@ export default function CodesPage() {
           </table>
         </div>
       </section>
+      )}
 
+      {activePanel === 'list' && (
+        <>
       {/* Filter bar */}
       <section className="card p-5 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -778,6 +838,8 @@ export default function CodesPage() {
           </div>
         )}
       </section>
+        </>
+      )}
 
       <ConfirmDialog
         open={!!confirmExpire}

@@ -5,11 +5,11 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f7f7f5;
+  --bg: #f6f8fb;
   --surface: #ffffff;
-  --border: #eeede8;
-  --text: #1a1916;
-  --text-muted: #6b6759;
+  --border: #dfe5ee;
+  --text: #111827;
+  --text-muted: #64748b;
 }
 
 html, body {
@@ -21,13 +21,13 @@ html, body {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
     @apply btn bg-ink-900 text-white hover:bg-ink-800;
   }
   .btn-secondary {
-    @apply btn bg-white border border-ink-200 text-ink-800 hover:bg-ink-50;
+    @apply btn border border-ink-200 bg-white text-ink-800 hover:bg-ink-50;
   }
   .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700;
@@ -37,20 +37,20 @@ html, body {
   }
 
   .card {
-    @apply bg-white border border-ink-100 rounded-xl shadow-soft;
+    @apply rounded-lg border border-ink-200 bg-white shadow-soft;
   }
 
   .input {
-    @apply w-full px-3 py-2 bg-white border border-ink-200 rounded-lg text-sm
-           focus:outline-none focus:ring-2 focus:ring-accent-200 focus:border-accent-400
+    @apply w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm
+           focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-100
            disabled:bg-ink-50 disabled:cursor-not-allowed;
   }
   .label {
-    @apply block text-sm font-medium text-ink-700 mb-1.5;
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-500;
   }
 
   .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
+    @apply inline-flex items-center rounded px-2 py-0.5 text-xs font-medium;
   }
   .badge-green  { @apply badge bg-green-100 text-green-800; }
   .badge-amber  { @apply badge bg-amber-100 text-amber-800; }
@@ -63,5 +63,5 @@ html, body {
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d8d6cf; border-radius: 999px; border: 2px solid #f7f7f5; }
-::-webkit-scrollbar-thumb:hover { background: #b5b1a6; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; border: 2px solid #f6f8fb; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

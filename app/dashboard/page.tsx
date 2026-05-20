@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import AdminShell from '@/components/AdminShell';
 import PageHeader from '@/components/PageHeader';
-import { fetchJsonOrThrow } from '@/lib/client-api';
 
 interface Stats {
   todayOrders: number;
@@ -29,11 +28,9 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchJsonOrThrow<Stats>(
-        '/api/admin/dashboard',
-        undefined,
-        'Gagal memuat data. Silakan refresh halaman.'
-      );
+      const r = await fetch('/api/admin/dashboard');
+      if (!r.ok) throw new Error('Gagal memuat data. Silakan refresh halaman.');
+      const data = await r.json();
       setStats(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Terjadi kesalahan');
@@ -66,11 +63,9 @@ export default function DashboardPage() {
         <div className="text-sm text-ink-500">Memuat data...</div>
       ) : stats ? (
         <>
-          <section className="mb-8">
-            <h2 className="text-xs font-mono uppercase tracking-wider text-ink-500 mb-3">
-              Pesanan
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <section className="mb-5">
+            <SectionTitle title="Pesanan" />
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <StatCard label="Hari Ini" value={stats.todayOrders} accent />
               <StatCard label="Bulan Ini" value={stats.monthOrders} />
               <StatCard label="Order Normal" value={stats.normalOrders} sub="HM · RG · ST" />
@@ -78,11 +73,9 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="mb-8">
-            <h2 className="text-xs font-mono uppercase tracking-wider text-ink-500 mb-3">
-              Status Order
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <section className="mb-5">
+            <SectionTitle title="Status Order" />
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <StatCard label="Pending" value={stats.pending} dotColor="bg-amber-400" />
               <StatCard label="Processing" value={stats.processing} dotColor="bg-blue-400" />
               <StatCard label="Completed" value={stats.completed} dotColor="bg-green-500" />
@@ -90,11 +83,9 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="mb-8">
-            <h2 className="text-xs font-mono uppercase tracking-wider text-ink-500 mb-3">
-              Kode Pesanan
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <section className="mb-5">
+            <SectionTitle title="Kode Pesanan" />
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <StatCard label="Unused" value={stats.unusedCodes} dotColor="bg-green-400" />
               <StatCard label="Used" value={stats.usedCodes} dotColor="bg-ink-400" />
               <StatCard label="Expired" value={stats.expiredCodes} dotColor="bg-red-400" />
@@ -104,6 +95,14 @@ export default function DashboardPage() {
         </>
       ) : null}
     </AdminShell>
+  );
+}
+
+function SectionTitle({ title }: { title: string }) {
+  return (
+    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">
+      {title}
+    </h2>
   );
 }
 
@@ -121,18 +120,18 @@ function StatCard({
   dotColor?: string;
 }) {
   return (
-    <div className={`card p-5 ${accent ? 'bg-ink-900 text-white border-ink-900' : ''}`}>
-      <div className="flex items-center gap-2 mb-2">
+    <div className={`card p-4 ${accent ? 'bg-ink-900 text-white border-ink-900' : ''}`}>
+      <div className="mb-1.5 flex items-center gap-2">
         {dotColor && <span className={`w-2 h-2 rounded-full ${dotColor}`} />}
         <div className={`text-xs font-medium ${accent ? 'text-ink-300' : 'text-ink-500'}`}>
           {label}
         </div>
       </div>
-      <div className={`font-display text-3xl font-semibold ${accent ? 'text-white' : 'text-ink-900'}`}>
+      <div className={`text-2xl font-semibold tracking-tight ${accent ? 'text-white' : 'text-ink-900'}`}>
         {value.toLocaleString('id-ID')}
       </div>
       {sub && (
-        <div className={`text-xs mt-1 font-mono ${accent ? 'text-ink-400' : 'text-ink-500'}`}>
+        <div className={`mt-1 text-xs font-mono ${accent ? 'text-ink-300' : 'text-ink-500'}`}>
           {sub}
         </div>
       )}

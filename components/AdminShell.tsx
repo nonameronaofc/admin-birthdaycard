@@ -8,9 +8,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="min-h-screen bg-ink-50 lg:flex">
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-ink-100 bg-white px-4 py-3 lg:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-ink-200 bg-white px-4 py-3 lg:hidden">
         <div>
-          <div className="font-display text-lg font-semibold text-ink-900">
+          <div className="text-base font-semibold text-ink-900">
             Admin<span className="text-accent-500">.</span>
           </div>
           <div className="text-[10px] font-mono tracking-wide text-ink-500">
@@ -45,7 +45,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       </div>
 
       <main className="min-w-0 flex-1 overflow-x-hidden">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto max-w-[1480px] px-4 py-4 sm:px-5 lg:px-6 lg:py-5">
           {children}
         </div>
       </main>
